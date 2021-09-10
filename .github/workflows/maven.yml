@@ -1,0 +1,32 @@
+name: maven
+on: [pull_request, push]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        # Use these Java versions
+        java: [
+          8,
+          16,
+        ]
+        # and run on both Linux and Windows
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v2.1.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: zulu
+      - name: Build with Maven
+        run: |
+          cd arrayvedit
+          mvn clean install -f pom.xml
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ matrix.java == 16 && matrix.os == 'ubuntu-latest' }}
+        with:
+          name: plugin-artifact
+          path: arrayvedit/target/ArrayVEditor-*.jar

@@ -26,7 +26,7 @@ jobs:
           mvn clean install -f pom.xml
       - name: Upload artifact
         uses: actions/upload-artifact@v2
-        if: ${{ matrix.java == 16 && matrix.os == 'ubuntu-latest' }}
+        if: ${{ matrix.java == 8 && matrix.os == 'ubuntu-latest' }}
         with:
           name: arrayvedit-artifact
           path: arrayvedit/target/ArrayVEditor-*.jar

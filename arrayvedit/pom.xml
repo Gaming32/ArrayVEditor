@@ -36,6 +36,11 @@
       <artifactId>jSystemThemeDetector</artifactId>
       <version>3.6</version>
     </dependency>
+    <!-- <dependency>
+	    <groupId>com.github.MinecraftForge</groupId>
+	    <artifactId>FernFlower</artifactId>
+	    <version>4823d29002</version>
+    </dependency> -->
   </dependencies>
 
   <build>

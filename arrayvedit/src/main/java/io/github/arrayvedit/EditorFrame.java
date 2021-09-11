@@ -9,6 +9,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
@@ -24,7 +25,6 @@ import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.filechooser.FileNameExtensionFilter;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
@@ -121,7 +121,19 @@ public class EditorFrame extends JFrame {
         JButton exportButton = new JButton();
         exportButton.setText("Export...");
         exportButton.addActionListener(e -> {
-            // TODO: Export button
+            int[] sortIndices = sortsList.getSelectedIndices();
+            if (sortIndices.length == 0) {
+                JOptionPane.showMessageDialog(this, "No sorts selected!", "Export Sorts", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            setupExportChooser();
+            int returnVal = fileChooser.showOpenDialog(this);
+            if (returnVal == JFileChooser.APPROVE_OPTION) {
+                int shouldDecompile = JOptionPane.showConfirmDialog(this, "Would you like to decompile the sort to a .java file?", "Export Sorts", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+                if (shouldDecompile == JOptionPane.CANCEL_OPTION) return;
+                File file = fileChooser.getSelectedFile();
+                exportSorts(file, sortIndices, shouldDecompile == JOptionPane.YES_OPTION);
+            }
         });
 
         JButton deleteButton = new JButton();
@@ -129,7 +141,7 @@ public class EditorFrame extends JFrame {
         deleteButton.addActionListener(e -> {
             int[] sortIndices = sortsList.getSelectedIndices();
             if (sortIndices.length == 0) {
-                JOptionPane.showMessageDialog(this, "No sorts selected", "Delete Sorts", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "No sorts selected!", "Delete Sorts", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             deleteSorts(sortIndices);
@@ -164,8 +176,26 @@ public class EditorFrame extends JFrame {
     }
 
     protected void setupJarChooser() {
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
         fileChooser.resetChoosableFileFilters();
-        fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Java Archive Files (.jar)", "jar"));
+        fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
+    }
+
+    protected void setupImportChooser() {
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        fileChooser.resetChoosableFileFilters();
+        fileChooser.addChoosableFileFilter(
+            FileFilters.mergeExtensionFilters("All supported",
+            FileFilters.JAVA_CLASS
+        ));
+        // fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
+        fileChooser.addChoosableFileFilter(FileFilters.JAVA_CLASS);
+        // fileChooser.addChoosableFileFilter(FileFilters.JAVA_SOURCE);
+    }
+
+    protected void setupExportChooser() {
+        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fileChooser.resetChoosableFileFilters();
     }
 
     protected void loadJar(File file) {
@@ -201,12 +231,42 @@ public class EditorFrame extends JFrame {
         pack();
     }
 
-    protected void deleteSorts(int[] sortIndices) {
+    protected BasicSortInfo[] getSortsFromIndices(int[] sortIndices) {
         BasicSortInfo[] sorts = new BasicSortInfo[sortIndices.length];
         int i = 0;
         for (int sortIndex : sortIndices) {
             sorts[i++] = sortsListModel.get(sortIndex);
         }
+        return sorts;
+    }
+
+    protected void exportSorts(File dir, int[] sortIndices, boolean decompile) {
+        BasicSortInfo[] sorts = getSortsFromIndices(sortIndices);
+
+        if (decompile) {
+            int shouldCancel = JOptionPane.showConfirmDialog(this, "Decompiling not yet supported. Would you like to continue without decompiling?", "Export Sorts", JOptionPane.YES_NO_OPTION);
+            if (shouldCancel == JOptionPane.NO_OPTION) return;
+        }
+
+        int count = 0;
+        Path dirPath = dir.toPath();
+        try {
+            for (Path fullPath : getSortPaths(sorts)) {
+                String fileName = fullPath.getFileName().toString();
+                Files.copy(fullPath, dirPath.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+                count++;
+            }
+        } catch (IOException e) {
+            showErrorMessage(e, "Export Sorts");
+        }
+
+        if (count > 0) {
+            JOptionPane.showMessageDialog(this, sorts.length + " sort(s) exported", "Export Sorts", count < sorts.length ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    protected void deleteSorts(int[] sortIndices) {
+        BasicSortInfo[] sorts = getSortsFromIndices(sortIndices);
 
         String sortMessage = Arrays.stream(sorts)
             .map(BasicSortInfo::toString)
@@ -214,7 +274,7 @@ public class EditorFrame extends JFrame {
 
         int dialogResult = JOptionPane.showConfirmDialog(this, 
             String.format(
-                "<html>Are you sure you would like to delete %1$s sorts?<br>" +
+                "<html>Are you sure you would like to delete %1$s sort(s)?<br>" +
                 "%2$s<br>" +
                 "<b>THIS ACTION IS IRREVERSIBLE!</b></html>",
                 sorts.length, sortMessage
@@ -223,23 +283,28 @@ public class EditorFrame extends JFrame {
 
         if (dialogResult != JOptionPane.YES_OPTION) return;
 
-        i = 0;
+        int i = 0;
         for (int sortIndex : sortIndices) {
             sortsListModel.remove(sortIndex - (i++));
         }
 
+        int count = 0;
         try {
-            for (BasicSortInfo sort : sorts) {
-                Path fullPath = jarFs.getPath("sorts", sort.id + ".class");
+            for (Path fullPath : getSortPaths(sorts)) {
                 Files.delete(fullPath);
+                count++;
             }
         } catch (IOException e) {
             showErrorMessage(e, "Delete Sorts");
             return;
         }
 
-        
+        if (count > 0) {
+            JOptionPane.showMessageDialog(this, sorts.length + " sort(s) deleted", "Delete Sorts", count < sorts.length ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
 
-        JOptionPane.showMessageDialog(this, sorts.length + " sorts deleted", "Delete Sorts", JOptionPane.INFORMATION_MESSAGE);
+    public Iterable<Path> getSortPaths(BasicSortInfo[] sorts) {
+        return () -> Arrays.stream(sorts).map(sort -> jarFs.getPath("sorts", sort.id + ".class")).iterator();
     }
 }

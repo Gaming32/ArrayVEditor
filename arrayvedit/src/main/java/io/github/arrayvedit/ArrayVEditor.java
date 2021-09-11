@@ -1,5 +1,6 @@
 package io.github.arrayvedit;
 
+import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -15,15 +16,6 @@ public class ArrayVEditor {
         } else {
             FlatLightLaf.setup();
         }
-        detector.registerListener(isDark -> {
-            SwingUtilities.invokeLater(() -> {
-                if (isDark) {
-                    FlatDarkLaf.setup();
-                } else {
-                    FlatLightLaf.setup();
-                }
-            });
-        });
-        SwingUtilities.invokeLater(() -> new EditorFrame());
+        SwingUtilities.invokeLater(() -> new EditorFrame(detector));
     }
 }

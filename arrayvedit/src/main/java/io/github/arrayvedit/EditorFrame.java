@@ -5,12 +5,32 @@ import java.awt.GridBagLayout;
 import javax.swing.GroupLayout;
 import javax.swing.JButton;
 import javax.swing.GroupLayout.Alignment;
+
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.jthemedetecor.OsThemeDetector;
+
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 public class EditorFrame extends JFrame {
-    public EditorFrame() {
+    protected final OsThemeDetector themeDetector;
+
+    public EditorFrame(OsThemeDetector themeDetector) {
+        this.themeDetector = themeDetector;
+        themeDetector.registerListener(isDark -> {
+            SwingUtilities.invokeLater(() -> {
+                if (isDark) {
+                    FlatDarkLaf.setup();
+                } else {
+                    FlatLightLaf.setup();
+                }
+                SwingUtilities.updateComponentTreeUI(this);
+            });
+        });
+        
         setDefaultCloseOperation(EXIT_ON_CLOSE);
 
         createComponents();
@@ -27,7 +47,7 @@ public class EditorFrame extends JFrame {
         JButton loadJARButton = new JButton();
         loadJARButton.setText("Load JAR");
         loadJARButton.addActionListener(e -> {
-            
+
         });
 
         JPanel mainPanel = new JPanel();

@@ -2,9 +2,13 @@ package io.github.arrayvedit;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import javax.swing.DefaultListModel;
 import javax.swing.GroupLayout;
@@ -33,7 +37,7 @@ public class EditorFrame extends JFrame {
     protected DefaultListModel<BasicSortInfo> sortsListModel;
     protected JList<BasicSortInfo> sortsList;
 
-    protected ZipFile jarFile;
+    protected FileSystem jarFs;
 
     public EditorFrame(OsThemeDetector themeDetector) {
         this.themeDetector = themeDetector;
@@ -138,25 +142,27 @@ public class EditorFrame extends JFrame {
 
     protected void loadJar(File file) {
         try {
-            jarFile = new ZipFile(file);
+            jarFs = FileSystems.newFileSystem(file.toPath());
         } catch (IOException exc) {
             exc.printStackTrace();
-            JOptionPane.showMessageDialog(this, exc.toString(), "Failed to open JAR", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, exc.toString(), "Open JAR", JOptionPane.ERROR_MESSAGE);
             return;
         }
         currentlyLoaded.setText(file.getName());
 
         sortsListModel.clear();
-        Iterator<? extends ZipEntry> entries = jarFile.entries().asIterator();
-        while (entries.hasNext()) {
-            ZipEntry entry = entries.next();
-            String entryName = entry.getName();
-            if (entryName.startsWith("sorts/") && entryName.endsWith(".class")) {
-                String classFileName = entryName.substring("sorts/".length());
-                String className = classFileName.substring(0, classFileName.lastIndexOf(".class"));
+        Path sortsDir = jarFs.getPath("sorts");
+        PathMatcher isClass = jarFs.getPathMatcher("glob:**.class");
+        try {
+            Files.walk(sortsDir).filter(p -> isClass.matches(p)).forEach(path -> {
+                Path relativePath = sortsDir.relativize(path);
+                String pathStr = relativePath.toString();
+                String className = pathStr.substring(0, pathStr.length() - ".class".length());
                 BasicSortInfo sort = new BasicSortInfo(className, className);
                 sortsListModel.addElement(sort);
-            }
+            });
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
         if (sortsListModel.isEmpty()) {

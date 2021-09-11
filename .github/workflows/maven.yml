@@ -24,9 +24,15 @@ jobs:
         run: |
           cd arrayvedit
           mvn clean install -f pom.xml
-      - name: Upload artifact
+      - name: Upload shaded artifact
         uses: actions/upload-artifact@v2
         if: ${{ matrix.java == 11 && matrix.os == 'ubuntu-latest' }}
         with:
-          name: arrayvedit-artifact
+          name: arrayvedit-shaded-artifact
           path: arrayvedit/target/ArrayVEditor-*.jar
+      - name: Upload original artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ matrix.java == 11 && matrix.os == 'ubuntu-latest' }}
+        with:
+          name: arrayvedit-original-artifact
+          path: arrayvedit/target/original-ArrayVEditor-*.jar

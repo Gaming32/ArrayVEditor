@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.swing.DefaultListModel;
@@ -201,7 +200,7 @@ public class EditorFrame extends JFrame {
 
     protected void loadJar(File file) {
         try {
-            jarFs = FileSystems.newFileSystem(file.toPath(), Map.of(), null);
+            jarFs = FileSystems.newFileSystem(file.toPath(), (ClassLoader)null);
         } catch (IOException exc) {
             showErrorMessage(exc, "Open JAR");
             return;

@@ -1,6 +1,5 @@
 package io.github.arrayvedit;
 
-import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatDarkLaf;

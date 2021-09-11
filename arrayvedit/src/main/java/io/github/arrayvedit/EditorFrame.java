@@ -1,6 +1,5 @@
 package io.github.arrayvedit;
 
-import java.awt.GridBagLayout;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
@@ -22,7 +21,6 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
@@ -33,7 +31,6 @@ public class EditorFrame extends JFrame {
 
     protected JLabel currentlyLoaded;
     protected DefaultListModel<BasicSortInfo> sortsListModel;
-    // protected VectorListModel<BasicSortInfo> sortsListModel;
     protected JList<BasicSortInfo> sortsList;
 
     protected ZipFile jarFile;
@@ -79,7 +76,6 @@ public class EditorFrame extends JFrame {
         });
 
         sortsListModel = new DefaultListModel<>();
-        // sortsListModel = new VectorListModel<>();
 
         sortsList = new JList<>();
         sortsList.setEnabled(false);
@@ -89,9 +85,26 @@ public class EditorFrame extends JFrame {
         sortsScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         sortsScrollPane.setViewportView(sortsList);
 
-        JPanel mainPanel = new JPanel();
+        JButton importButton = new JButton();
+        importButton.setText("Import...");
+        importButton.addActionListener(e -> {
+            // TODO: Import button
+        });
 
-        GroupLayout layout = new GroupLayout(mainPanel);
+        JButton exportButton = new JButton();
+        exportButton.setText("Export...");
+        exportButton.addActionListener(e -> {
+            // TODO: Export button
+        });
+
+        JButton deleteButton = new JButton();
+        deleteButton.setText("Delete");
+        deleteButton.addActionListener(e -> {
+            // TODO: Delete button
+        });
+
+        GroupLayout layout = new GroupLayout(getContentPane());
+        getContentPane().setLayout(layout);
         layout.setAutoCreateGaps(true);
         layout.setAutoCreateContainerGaps(true);
         layout.setHorizontalGroup(
@@ -99,18 +112,23 @@ public class EditorFrame extends JFrame {
                 .addComponent(currentlyLoaded)
                 .addComponent(loadJARButton)
                 .addComponent(sortsScrollPane)
+                .addGroup(layout.createSequentialGroup()
+                    .addComponent(importButton)
+                    .addComponent(exportButton)
+                    .addComponent(deleteButton)
+                )
         );
         layout.setVerticalGroup(
             layout.createSequentialGroup()
                 .addComponent(currentlyLoaded)
                 .addComponent(loadJARButton)
                 .addComponent(sortsScrollPane)
+                .addGroup(layout.createParallelGroup(Alignment.CENTER)
+                    .addComponent(importButton)
+                    .addComponent(exportButton)
+                    .addComponent(deleteButton)
+                )
         );
-
-        GridBagLayout gbLayout = new GridBagLayout();
-        getContentPane().setLayout(gbLayout);
-        mainPanel.setLayout(layout);
-        add(mainPanel);
     }
 
     protected void setupJarChooser() {
@@ -142,7 +160,7 @@ public class EditorFrame extends JFrame {
         }
 
         if (sortsListModel.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "The JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
         }
 
         sortsList.setEnabled(true);

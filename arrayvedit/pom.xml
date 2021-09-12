@@ -41,6 +41,11 @@
       <artifactId>bcel</artifactId>
       <version>6.5.0</version>
     </dependency>
+    <dependency>
+	    <groupId>com.github.fesh0r</groupId>
+	    <artifactId>fernflower</artifactId>
+	    <version>e19aab61ce</version>
+    </dependency>
   </dependencies>
 
   <build>

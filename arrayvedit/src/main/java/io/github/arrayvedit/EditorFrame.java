@@ -143,7 +143,7 @@ public class EditorFrame extends JFrame {
             setupExportChooser();
             int returnVal = fileChooser.showOpenDialog(this);
             if (returnVal == JFileChooser.APPROVE_OPTION) {
-                int shouldDecompile = JOptionPane.showConfirmDialog(this, "Would you like to decompile the sort to a .java file?", "Export Sorts", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+                int shouldDecompile = JOptionPane.showConfirmDialog(this, "Would you like to decompile the sort(s) to a .java file?", "Export Sorts", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
                 if (shouldDecompile == JOptionPane.CANCEL_OPTION) return;
                 File file = fileChooser.getSelectedFile();
                 exportSorts(file, sortIndices, shouldDecompile == JOptionPane.YES_OPTION);
@@ -323,21 +323,23 @@ public class EditorFrame extends JFrame {
     protected void exportSorts(File dir, int[] sortIndices, boolean decompile) {
         BasicSortInfo[] sorts = getSortsFromIndices(sortIndices);
 
-        if (decompile) {
-            int shouldCancel = JOptionPane.showConfirmDialog(this, "Decompiling not yet supported. Would you like to continue without decompiling?", "Export Sorts", JOptionPane.YES_NO_OPTION);
-            if (shouldCancel == JOptionPane.NO_OPTION) return;
-        }
-
         int count = 0;
         Path dirPath = dir.toPath();
+        File[] resultFiles = new File[sorts.length];
         try {
             for (Path fullPath : getSortPaths(sorts)) {
                 String fileName = fullPath.getFileName().toString();
-                Files.copy(fullPath, dirPath.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+                Path path = dirPath.resolve(fileName);
+                Files.copy(fullPath, path, StandardCopyOption.REPLACE_EXISTING);
+                resultFiles[count] = path.toFile();
                 count++;
             }
         } catch (IOException e) {
             showErrorMessage(e, "Export Sorts");
+        }
+
+        if (decompile) {
+            DecompilerUtils.decompile(resultFiles, dir);
         }
 
         if (count > 0) {

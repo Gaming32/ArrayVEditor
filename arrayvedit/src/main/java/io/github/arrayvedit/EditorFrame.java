@@ -10,7 +10,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.swing.DefaultListModel;
@@ -207,7 +210,7 @@ public class EditorFrame extends JFrame {
         }
         currentlyLoaded.setText(file.getName());
 
-        sortsListModel.clear();
+        List<BasicSortInfo> sorts = new ArrayList<>();
         Path sortsDir = jarFs.getPath("sorts");
         PathMatcher isClass = jarFs.getPathMatcher("glob:**.class");
         try {
@@ -216,16 +219,22 @@ public class EditorFrame extends JFrame {
                 String pathStr = relativePath.toString();
                 String className = pathStr.substring(0, pathStr.length() - ".class".length());
                 BasicSortInfo sort = new BasicSortInfo(className, className);
-                sortsListModel.addElement(sort);
+                sorts.add(sort);
             });
         } catch (IOException e) {
             showErrorMessage(e, "Open JAR");
             return;
         }
 
-        if (sortsListModel.isEmpty()) {
+        if (sorts.isEmpty()) {
             JOptionPane.showMessageDialog(this, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
         }
+
+        Collections.sort(sorts, (a, b) -> {
+            return a.id.compareTo(b.id);
+        });
+        sortsListModel.clear();
+        sortsListModel.addAll(sorts);
 
         sortsList.setEnabled(true);
         pack();

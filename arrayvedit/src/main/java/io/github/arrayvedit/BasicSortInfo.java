@@ -1,6 +1,6 @@
 package io.github.arrayvedit;
 
-public class BasicSortInfo {
+public class BasicSortInfo implements Comparable<BasicSortInfo> {
     public final String id, displayName;
 
     public BasicSortInfo(String id, String displayName) {
@@ -21,5 +21,9 @@ public class BasicSortInfo {
             BasicSortInfo other = (BasicSortInfo)o;
             return this.id.equals(other.id);
         }
+    }
+
+    public int compareTo(BasicSortInfo other) {
+        return this.id.compareTo(other.id);
     }
 }

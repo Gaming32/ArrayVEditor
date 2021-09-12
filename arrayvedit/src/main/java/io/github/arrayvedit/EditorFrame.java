@@ -33,6 +33,8 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jthemedetecor.OsThemeDetector;
 
+import org.apache.bcel.classfile.JavaClass;
+
 public class EditorFrame extends JFrame {
     protected final OsThemeDetector themeDetector;
     protected final JFileChooser fileChooser;
@@ -118,7 +120,16 @@ public class EditorFrame extends JFrame {
         JButton importButton = new JButton();
         importButton.setText("Import...");
         importButton.addActionListener(e -> {
-            // TODO: Import button
+            if (jarFs == null) {
+                JOptionPane.showMessageDialog(this, "No JAR opened!", "Import Sorts", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            setupImportChooser();
+            int returnVal = fileChooser.showOpenDialog(this);
+            if (returnVal == JFileChooser.APPROVE_OPTION) {
+                File[] files = fileChooser.getSelectedFiles();
+                importSorts(files);
+            }
         });
 
         JButton exportButton = new JButton();
@@ -180,15 +191,17 @@ public class EditorFrame extends JFrame {
 
     protected void setupJarChooser() {
         fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        fileChooser.setMultiSelectionEnabled(false);
         fileChooser.resetChoosableFileFilters();
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
     }
 
     protected void setupImportChooser() {
         fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        fileChooser.setMultiSelectionEnabled(true);
         fileChooser.resetChoosableFileFilters();
         fileChooser.addChoosableFileFilter(
-            FileFilters.mergeExtensionFilters("All supported",
+            FileFilters.mergeExtensionFilters("All supported (*.class)",
             FileFilters.JAVA_CLASS
         ));
         // fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
@@ -198,6 +211,7 @@ public class EditorFrame extends JFrame {
 
     protected void setupExportChooser() {
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fileChooser.setMultiSelectionEnabled(false);
         fileChooser.resetChoosableFileFilters();
     }
 
@@ -230,9 +244,7 @@ public class EditorFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
         }
 
-        Collections.sort(sorts, (a, b) -> {
-            return a.id.compareTo(b.id);
-        });
+        Collections.sort(sorts);
         sortsListModel.clear();
         sortsListModel.addAll(sorts);
 
@@ -247,6 +259,65 @@ public class EditorFrame extends JFrame {
             sorts[i++] = sortsListModel.get(sortIndex);
         }
         return sorts;
+    }
+
+    protected void importSorts(File[] files) {
+        int success = (int)Arrays.stream(files).map(this::importSort).filter(b -> b).count();
+        JOptionPane.showMessageDialog(this,
+            "Successfully imported " + success + " sort(s)",
+            "Import Sorts", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    protected boolean importSort(File file) {
+        String ext = Utils.getExt(file);
+
+        switch (ext.toLowerCase()) {
+            case ".class":
+                JavaClass classInfo;
+                try {
+                    classInfo = ClassUtils.parse(file);
+                } catch (IOException e) {
+                    showErrorMessage(e, "Import Sort");
+                    return false;
+                }
+                String packageName = classInfo.getPackageName();
+                if (!packageName.startsWith("sorts.")) {
+                    int shouldImport = JOptionPane.showConfirmDialog(this,
+                        "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
+                        "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                    if (shouldImport != JOptionPane.YES_OPTION) {
+                        return false;
+                    }
+                }
+                String[] sortPath = classInfo.getClassName().split("\\.");
+                sortPath[sortPath.length - 1] += ".class";
+                Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
+                if (Files.exists(destination)) {
+                    int shouldImport = JOptionPane.showConfirmDialog(this,
+                        "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
+                        "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                    if (shouldImport != JOptionPane.YES_OPTION) {
+                        return false;
+                    }
+                }
+                try {
+                    Files.copy(file.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    showErrorMessage(e, "Import Sort");
+                    return false;
+                }
+                String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
+                name = name.substring(0, name.length() - ".class".length());
+                BasicSortInfo info = new BasicSortInfo(name, name);
+                sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
+                return true;
+
+            default:
+                JOptionPane.showMessageDialog(this,
+                    "Unable to load \"" + ext + "\" files.",
+                    "Import Sort", JOptionPane.ERROR_MESSAGE);
+                return false;
+        }
     }
 
     protected void exportSorts(File dir, int[] sortIndices, boolean decompile) {

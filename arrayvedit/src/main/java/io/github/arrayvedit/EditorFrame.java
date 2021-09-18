@@ -13,7 +13,9 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 import javax.swing.DefaultListModel;
@@ -325,13 +327,39 @@ public class EditorFrame extends JFrame {
 
         int count = 0;
         Path dirPath = dir.toPath();
-        File[] resultFiles = new File[sorts.length];
+        List<File> resultFiles = new ArrayList<>();
         try {
             for (Path fullPath : getSortPaths(sorts)) {
                 String fileName = fullPath.getFileName().toString();
+                String fullName = fullPath.toString();
+                String className = fullName.substring(0, fullName.length() - ".class".length());
                 Path path = dirPath.resolve(fileName);
                 Files.copy(fullPath, path, StandardCopyOption.REPLACE_EXISTING);
-                resultFiles[count] = path.toFile();
+                resultFiles.add(path.toFile());
+                PathMatcher matcher = jarFs.getPathMatcher("glob:" + className + "$*.class");
+                Iterable<Path> siblings = () -> {
+                    try {
+                        return Files.list(fullPath.getParent()).iterator();
+                    } catch (IOException e) {
+                        return new Iterator<Path>() {
+                            @Override
+                            public boolean hasNext() {
+                                return false;
+                            }
+                            @Override
+                            public Path next() {
+                                throw new NoSuchElementException();
+                            }
+                        };
+                    }
+                };
+                for (Path sibling : siblings) {
+                    if (!matcher.matches(sibling)) continue;
+                    Path dest = dirPath.resolve(sibling.getFileName().toString());
+                    Files.copy(sibling, dest, StandardCopyOption.REPLACE_EXISTING);
+                    resultFiles.add(dest.toFile());
+                }
+                matcher.matches(path);
                 count++;
             }
         } catch (IOException e) {
@@ -339,7 +367,7 @@ public class EditorFrame extends JFrame {
         }
 
         if (decompile) {
-            DecompilerUtils.decompile(resultFiles, dir);
+            DecompilerUtils.decompile(resultFiles.toArray(new File[0]), dir);
         }
 
         if (count > 0) {

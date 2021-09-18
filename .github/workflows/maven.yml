@@ -9,6 +9,7 @@ jobs:
         java: [
           11,
           16,
+          17,
         ]
         # and run on both Linux and Windows
         os: [ubuntu-latest, windows-latest]

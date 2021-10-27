@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -281,60 +282,67 @@ public class EditorFrame extends JFrame {
             "Import Sorts", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    protected boolean importSort(File file) {
-        String ext = Utils.getExt(file);
+    protected boolean importSort(File baseFile) {
+        Deque<File> files = Utils.asDeque(baseFile);
 
-        switch (ext.toLowerCase()) {
-            case ".java":
-                file = CompilerUtils.compileSort(this, file);
-                if (file == null) return false;
+        while (files.size() > 0) {
+            File file = files.pop();
+            String ext = Utils.getExt(file);
+            switch (ext.toLowerCase()) {
+                case ".java":
+                    List<File> newFiles = CompilerUtils.compileSort(this, file);
+                    if (newFiles == null) return false;
+                    files.addAll(newFiles);
+                    break;
 
-            case ".class":
-                JavaClass classInfo;
-                try {
-                    classInfo = ClassUtils.parse(file);
-                } catch (IOException e) {
-                    showErrorMessage(e, "Import Sort");
-                    return false;
-                }
-                String packageName = classInfo.getPackageName();
-                if (!packageName.startsWith("sorts.")) {
-                    int shouldImport = JOptionPane.showConfirmDialog(this,
-                        "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
-                        "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                    if (shouldImport != JOptionPane.YES_OPTION) {
+                case ".class":
+                    JavaClass classInfo;
+                    try {
+                        classInfo = ClassUtils.parse(file);
+                    } catch (IOException e) {
+                        showErrorMessage(e, "Import Sort");
                         return false;
                     }
-                }
-                String[] sortPath = classInfo.getClassName().split("\\.");
-                sortPath[sortPath.length - 1] += ".class";
-                Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
-                if (Files.exists(destination)) {
-                    int shouldImport = JOptionPane.showConfirmDialog(this,
-                        "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
-                        "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                    if (shouldImport != JOptionPane.YES_OPTION) {
+                    String packageName = classInfo.getPackageName();
+                    if (!packageName.startsWith("sorts.")) {
+                        int shouldImport = JOptionPane.showConfirmDialog(this,
+                            "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
+                            "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                        if (shouldImport != JOptionPane.YES_OPTION) {
+                            return false;
+                        }
+                    }
+                    String[] sortPath = classInfo.getClassName().split("\\.");
+                    sortPath[sortPath.length - 1] += ".class";
+                    Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
+                    if (Files.exists(destination)) {
+                        int shouldImport = JOptionPane.showConfirmDialog(this,
+                            "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
+                            "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                        if (shouldImport != JOptionPane.YES_OPTION) {
+                            return false;
+                        }
+                    }
+                    try {
+                        Files.copy(file.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
+                    } catch (IOException e) {
+                        showErrorMessage(e, "Import Sort");
                         return false;
                     }
-                }
-                try {
-                    Files.copy(file.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    showErrorMessage(e, "Import Sort");
-                    return false;
-                }
-                String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
-                name = name.substring(0, name.length() - ".class".length());
-                BasicSortInfo info = new BasicSortInfo(name, name);
-                sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
-                return true;
+                    String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
+                    name = name.substring(0, name.length() - ".class".length());
+                    BasicSortInfo info = new BasicSortInfo(name, name);
+                    sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
+                    break;
 
-            default:
-                JOptionPane.showMessageDialog(this,
-                    "Unable to load \"" + ext + "\" files.",
-                    "Import Sort", JOptionPane.ERROR_MESSAGE);
-                return false;
+                default:
+                    JOptionPane.showMessageDialog(this,
+                        "Unable to load \"" + ext + "\" files.",
+                        "Import Sort", JOptionPane.ERROR_MESSAGE);
+                    return false;
+            }
         }
+        return true;
     }
 
     protected void exportSorts(File dir, int[] sortIndices, boolean decompile) {

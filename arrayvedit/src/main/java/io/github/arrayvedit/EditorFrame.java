@@ -45,6 +45,7 @@ public class EditorFrame extends JFrame {
     protected DefaultListModel<BasicSortInfo> sortsListModel;
     protected JList<BasicSortInfo> sortsList;
 
+    protected File jarFile;
     protected FileSystem jarFs;
 
     public EditorFrame(OsThemeDetector themeDetector) {
@@ -62,7 +63,7 @@ public class EditorFrame extends JFrame {
 
         fileChooser = new JFileChooser(System.getProperty("user.dir"));
         fileChooser.setAcceptAllFileFilterUsed(false);
-        
+
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
         createComponents();
@@ -85,9 +86,17 @@ public class EditorFrame extends JFrame {
         setVisible(true);
     }
 
+    public void showErrorMessage(String body, String title) {
+        JOptionPane.showMessageDialog(this, body, title, JOptionPane.ERROR_MESSAGE);
+    }
+
+    public void showErrorMessage(String body) {
+        showErrorMessage(body, getTitle());
+    }
+
     public void showErrorMessage(Throwable e, String title) {
         e.printStackTrace();
-        JOptionPane.showMessageDialog(EditorFrame.this, e.toString(), title, JOptionPane.ERROR_MESSAGE);
+        showErrorMessage(e.toString(), title);
     }
 
     public void showErrorMessage(Throwable e) {
@@ -203,12 +212,13 @@ public class EditorFrame extends JFrame {
         fileChooser.setMultiSelectionEnabled(true);
         fileChooser.resetChoosableFileFilters();
         fileChooser.addChoosableFileFilter(
-            FileFilters.mergeExtensionFilters("All supported (*.class)",
-            FileFilters.JAVA_CLASS
+            FileFilters.mergeExtensionFilters("All supported (*.class, *.java)",
+            FileFilters.JAVA_CLASS,
+            FileFilters.JAVA_SOURCE
         ));
         // fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_CLASS);
-        // fileChooser.addChoosableFileFilter(FileFilters.JAVA_SOURCE);
+        fileChooser.addChoosableFileFilter(FileFilters.JAVA_SOURCE);
     }
 
     protected void setupExportChooser() {
@@ -225,6 +235,7 @@ public class EditorFrame extends JFrame {
             return;
         }
         currentlyLoaded.setText(file.getName());
+        jarFile = file;
 
         List<BasicSortInfo> sorts = new ArrayList<>();
         Path sortsDir = jarFs.getPath("sorts");
@@ -274,6 +285,10 @@ public class EditorFrame extends JFrame {
         String ext = Utils.getExt(file);
 
         switch (ext.toLowerCase()) {
+            case ".java":
+                file = CompilerUtils.compileSort(this, file);
+                if (file == null) return false;
+
             case ".class":
                 JavaClass classInfo;
                 try {
@@ -382,7 +397,7 @@ public class EditorFrame extends JFrame {
             .map(BasicSortInfo::toString)
             .collect(Collectors.joining(", "));
 
-        int dialogResult = JOptionPane.showConfirmDialog(this, 
+        int dialogResult = JOptionPane.showConfirmDialog(this,
             String.format(
                 "<html>Are you sure you would like to delete %1$s sort(s)?<br>" +
                 "%2$s<br>" +

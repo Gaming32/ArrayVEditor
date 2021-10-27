@@ -1,3 +1,5 @@
+cache
+compile-*.txt
 target
 dependency-reduced-pom.xml
 arrayVisualizer.jar

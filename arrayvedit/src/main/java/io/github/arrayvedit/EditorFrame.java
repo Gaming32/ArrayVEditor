@@ -152,7 +152,7 @@ public class EditorFrame extends JFrame {
                 JOptionPane.showMessageDialog(this, "No sorts selected!", "Export Sorts", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            setupExportChooser();
+            setupDirectoryChooser();
             int returnVal = fileChooser.showOpenDialog(this);
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 int shouldDecompile = JOptionPane.showConfirmDialog(this, "Would you like to decompile the sort(s) to a .java file?", "Export Sorts", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
@@ -222,7 +222,7 @@ public class EditorFrame extends JFrame {
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_SOURCE);
     }
 
-    protected void setupExportChooser() {
+    protected void setupDirectoryChooser() {
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fileChooser.setMultiSelectionEnabled(false);
         fileChooser.resetChoosableFileFilters();

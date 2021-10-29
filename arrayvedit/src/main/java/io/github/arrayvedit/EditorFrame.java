@@ -1,5 +1,6 @@
 package io.github.arrayvedit;
 
+import java.awt.Window;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
@@ -76,7 +77,6 @@ public class EditorFrame extends JFrame {
                         jarFs.close();
                     } catch (IOException exc) {
                         showErrorMessage(exc);
-                        return;
                     }
                 }
             }
@@ -140,7 +140,11 @@ public class EditorFrame extends JFrame {
             int returnVal = fileChooser.showOpenDialog(this);
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 File[] files = fileChooser.getSelectedFiles();
-                importSorts(files);
+                if (files.length == 1 && Utils.getExt(files[0]).equalsIgnoreCase(".jar")) {
+                    transferSorts(files[0]);
+                } else {
+                    importSorts(files);
+                }
             }
         });
 
@@ -213,13 +217,14 @@ public class EditorFrame extends JFrame {
         fileChooser.setMultiSelectionEnabled(true);
         fileChooser.resetChoosableFileFilters();
         fileChooser.addChoosableFileFilter(
-            FileFilters.mergeExtensionFilters("All supported (*.class, *.java)",
+            FileFilters.mergeExtensionFilters("All supported (*.class, *.java, *.jar)",
             FileFilters.JAVA_CLASS,
-            FileFilters.JAVA_SOURCE
+            FileFilters.JAVA_SOURCE,
+            FileFilters.JAVA_ARCHIVE
         ));
-        // fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_CLASS);
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_SOURCE);
+        fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
     }
 
     protected void setupDirectoryChooser() {
@@ -229,14 +234,21 @@ public class EditorFrame extends JFrame {
     }
 
     protected void loadJar(File file) {
+        FileSystem jarFs = loadJar(this, this, file, sortsListModel, sortsList);
+        if (jarFs == null) return;
+        this.jarFs = jarFs;
+        currentlyLoaded.setText(file.getName());
+        jarFile = file;
+    }
+
+    protected static FileSystem loadJar(EditorFrame parent, Window window, File file, DefaultListModel<BasicSortInfo> sortsListModel, JList<BasicSortInfo> sortsList) {
+        FileSystem jarFs;
         try {
             jarFs = FileSystems.newFileSystem(file.toPath(), (ClassLoader)null);
         } catch (IOException exc) {
-            showErrorMessage(exc, "Open JAR");
-            return;
+            parent.showErrorMessage(exc, "Open JAR");
+            return null;
         }
-        currentlyLoaded.setText(file.getName());
-        jarFile = file;
 
         List<BasicSortInfo> sorts = new ArrayList<>();
         Path sortsDir = jarFs.getPath("sorts");
@@ -250,12 +262,12 @@ public class EditorFrame extends JFrame {
                 sorts.add(sort);
             });
         } catch (IOException e) {
-            showErrorMessage(e, "Open JAR");
-            return;
+            parent.showErrorMessage(e, "Open JAR");
+            return null;
         }
 
         if (sorts.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(parent, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
         }
 
         Collections.sort(sorts);
@@ -263,7 +275,8 @@ public class EditorFrame extends JFrame {
         sortsListModel.addAll(sorts);
 
         sortsList.setEnabled(true);
-        pack();
+        window.pack();
+        return jarFs;
     }
 
     protected BasicSortInfo[] getSortsFromIndices(int[] sortIndices) {
@@ -273,6 +286,13 @@ public class EditorFrame extends JFrame {
             sorts[i++] = sortsListModel.get(sortIndex);
         }
         return sorts;
+    }
+
+    protected void transferSorts(File jar) {
+        ImportFromDialog dialog = new ImportFromDialog(this, themeDetector);
+        dialog.jarFs = loadJar(this, dialog, jar, dialog.sortsListModel, dialog.sortsList);
+        dialog.currentlyLoaded.setText(jar.getName());
+        dialog.setVisible(true);
     }
 
     protected void importSorts(File[] files) {

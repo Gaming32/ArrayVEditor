@@ -323,36 +323,7 @@ public class EditorFrame extends JFrame {
                         showErrorMessage(e, "Import Sort");
                         return false;
                     }
-                    String packageName = classInfo.getPackageName();
-                    if (!packageName.startsWith("sorts.")) {
-                        int shouldImport = JOptionPane.showConfirmDialog(this,
-                            "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
-                            "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                        if (shouldImport != JOptionPane.YES_OPTION) {
-                            return false;
-                        }
-                    }
-                    String[] sortPath = classInfo.getClassName().split("\\.");
-                    sortPath[sortPath.length - 1] += ".class";
-                    Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
-                    if (Files.exists(destination)) {
-                        int shouldImport = JOptionPane.showConfirmDialog(this,
-                            "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
-                            "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                        if (shouldImport != JOptionPane.YES_OPTION) {
-                            return false;
-                        }
-                    }
-                    try {
-                        Files.copy(file.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        showErrorMessage(e, "Import Sort");
-                        return false;
-                    }
-                    String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
-                    name = name.substring(0, name.length() - ".class".length());
-                    BasicSortInfo info = new BasicSortInfo(name, name);
-                    sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
+                    if (!importFromClassFile(classInfo, file.toPath())) return false;
                     break;
 
                 default:
@@ -362,6 +333,40 @@ public class EditorFrame extends JFrame {
                     return false;
             }
         }
+        return true;
+    }
+
+    protected boolean importFromClassFile(JavaClass classInfo, Path fromPath) {
+        String packageName = classInfo.getPackageName();
+        if (!packageName.startsWith("sorts.")) {
+            int shouldImport = JOptionPane.showConfirmDialog(this,
+                "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
+                "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (shouldImport != JOptionPane.YES_OPTION) {
+                return false;
+            }
+        }
+        String[] sortPath = classInfo.getClassName().split("\\.");
+        sortPath[sortPath.length - 1] += ".class";
+        Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
+        if (Files.exists(destination)) {
+            int shouldImport = JOptionPane.showConfirmDialog(this,
+                "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
+                "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (shouldImport != JOptionPane.YES_OPTION) {
+                return false;
+            }
+        }
+        try {
+            Files.copy(fromPath, destination, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            showErrorMessage(e, "Import Sort");
+            return false;
+        }
+        String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
+        name = name.substring(0, name.length() - ".class".length());
+        BasicSortInfo info = new BasicSortInfo(name, name);
+        sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
         return true;
     }
 
@@ -402,7 +407,6 @@ public class EditorFrame extends JFrame {
                     Files.copy(sibling, dest, StandardCopyOption.REPLACE_EXISTING);
                     resultFiles.add(dest.toFile());
                 }
-                matcher.matches(path);
                 count++;
             }
         } catch (IOException e) {
@@ -458,6 +462,10 @@ public class EditorFrame extends JFrame {
     }
 
     public Iterable<Path> getSortPaths(BasicSortInfo[] sorts) {
-        return () -> Arrays.stream(sorts).map(sort -> jarFs.getPath("sorts", sort.id + ".class")).iterator();
+        return getSortPaths(jarFs, sorts);
+    }
+
+    public static Iterable<Path> getSortPaths(FileSystem fs, BasicSortInfo[] sorts) {
+        return () -> Arrays.stream(sorts).map(sort -> fs.getPath("sorts", sort.id + ".class")).iterator();
     }
 }

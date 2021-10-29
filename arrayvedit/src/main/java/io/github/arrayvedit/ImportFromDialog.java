@@ -5,6 +5,11 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 import javax.swing.DefaultListModel;
 import javax.swing.GroupLayout;
@@ -33,7 +38,7 @@ public class ImportFromDialog extends JDialog {
     protected FileSystem jarFs;
 
     public ImportFromDialog(EditorFrame parent, OsThemeDetector themeDetector) {
-        super(parent, "Transfer Sorts", Dialog.ModalityType.DOCUMENT_MODAL);
+        super(parent, "Copy Sorts", Dialog.ModalityType.DOCUMENT_MODAL);
         this.parent = parent;
 
         this.themeDetector = themeDetector;
@@ -63,8 +68,6 @@ public class ImportFromDialog extends JDialog {
                 }
             }
         });
-
-        setTitle("Transfer Sorts");
     }
 
     protected void createComponents() {
@@ -80,12 +83,12 @@ public class ImportFromDialog extends JDialog {
         sortsScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         sortsScrollPane.setViewportView(sortsList);
 
-        JButton transferButton = new JButton();
-        transferButton.setText("Transfer");
-        transferButton.addActionListener(e -> {
+        JButton copyButton = new JButton();
+        copyButton.setText("Copy");
+        copyButton.addActionListener(e -> {
             int[] sortIndices = sortsList.getSelectedIndices();
             if (sortIndices.length == 0) {
-                JOptionPane.showMessageDialog(this, "No sorts selected!", "Transfer Sorts", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "No sorts selected!", "Copy Sorts", JOptionPane.ERROR_MESSAGE);
                 return;
             }
             transferSorts(sortIndices);
@@ -99,13 +102,13 @@ public class ImportFromDialog extends JDialog {
             layout.createParallelGroup(Alignment.CENTER)
                 .addComponent(currentlyLoaded)
                 .addComponent(sortsScrollPane)
-                .addComponent(transferButton)
+                .addComponent(copyButton)
         );
         layout.setVerticalGroup(
             layout.createSequentialGroup()
                 .addComponent(currentlyLoaded)
                 .addComponent(sortsScrollPane)
-                .addComponent(transferButton)
+                .addComponent(copyButton)
         );
     }
 
@@ -118,8 +121,51 @@ public class ImportFromDialog extends JDialog {
         return sorts;
     }
 
-    private void transferSorts(int[] sortIndices) {
+    protected void transferSorts(int[] sortIndices) {
         BasicSortInfo[] sorts = getSortsFromIndices(sortIndices);
-        System.out.println("Transfer " + sorts.length + " sorts");
+        int count = 0;
+        for (Path fullPath : EditorFrame.getSortPaths(jarFs, sorts)) {
+            String fullName = fullPath.toString();
+            String className = fullName.substring(0, fullName.length() - ".class".length());
+            if (!transferSort(fullPath)) continue;
+            PathMatcher matcher = jarFs.getPathMatcher("glob:" + className + "$*.class");
+            Iterable<Path> siblings = () -> {
+                try {
+                    return Files.list(fullPath.getParent()).iterator();
+                } catch (IOException e) {
+                    return new Iterator<Path>() {
+                        @Override
+                        public boolean hasNext() {
+                            return false;
+                        }
+                        @Override
+                        public Path next() {
+                            throw new NoSuchElementException();
+                        }
+                    };
+                }
+            };
+            for (Path sibling : siblings) {
+                if (matcher.matches(sibling)) {
+                    transferSort(sibling);
+                }
+            }
+            count++;
+        }
+
+        if (count > 0) {
+            JOptionPane.showMessageDialog(this, sorts.length + " sort(s) copied", "Copy Sorts", count < sorts.length ? JOptionPane.WARNING_MESSAGE : JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    protected boolean transferSort(Path path) {
+        boolean success;
+        try {
+            success = parent.importFromClassFile(ClassUtils.parse(path), path);
+        } catch (IOException e) {
+            parent.showErrorMessage(e, "Copy Sort");
+            success = false;
+        }
+        return success;
     }
 }

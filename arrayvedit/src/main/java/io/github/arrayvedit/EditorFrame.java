@@ -1,5 +1,6 @@
 package io.github.arrayvedit;
 
+import java.awt.Window;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
@@ -76,7 +77,6 @@ public class EditorFrame extends JFrame {
                         jarFs.close();
                     } catch (IOException exc) {
                         showErrorMessage(exc);
-                        return;
                     }
                 }
             }
@@ -140,7 +140,11 @@ public class EditorFrame extends JFrame {
             int returnVal = fileChooser.showOpenDialog(this);
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 File[] files = fileChooser.getSelectedFiles();
-                importSorts(files);
+                if (files.length == 1 && Utils.getExt(files[0]).equalsIgnoreCase(".jar")) {
+                    transferSorts(files[0]);
+                } else {
+                    importSorts(files);
+                }
             }
         });
 
@@ -152,7 +156,7 @@ public class EditorFrame extends JFrame {
                 JOptionPane.showMessageDialog(this, "No sorts selected!", "Export Sorts", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            setupExportChooser();
+            setupDirectoryChooser();
             int returnVal = fileChooser.showOpenDialog(this);
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 int shouldDecompile = JOptionPane.showConfirmDialog(this, "Would you like to decompile the sort(s) to a .java file?", "Export Sorts", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
@@ -213,30 +217,38 @@ public class EditorFrame extends JFrame {
         fileChooser.setMultiSelectionEnabled(true);
         fileChooser.resetChoosableFileFilters();
         fileChooser.addChoosableFileFilter(
-            FileFilters.mergeExtensionFilters("All supported (*.class, *.java)",
+            FileFilters.mergeExtensionFilters("All supported (*.class, *.java, *.jar)",
             FileFilters.JAVA_CLASS,
-            FileFilters.JAVA_SOURCE
+            FileFilters.JAVA_SOURCE,
+            FileFilters.JAVA_ARCHIVE
         ));
-        // fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_CLASS);
         fileChooser.addChoosableFileFilter(FileFilters.JAVA_SOURCE);
+        fileChooser.addChoosableFileFilter(FileFilters.JAVA_ARCHIVE);
     }
 
-    protected void setupExportChooser() {
+    protected void setupDirectoryChooser() {
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fileChooser.setMultiSelectionEnabled(false);
         fileChooser.resetChoosableFileFilters();
     }
 
     protected void loadJar(File file) {
+        FileSystem jarFs = loadJar(this, this, file, sortsListModel, sortsList);
+        if (jarFs == null) return;
+        this.jarFs = jarFs;
+        currentlyLoaded.setText(file.getName());
+        jarFile = file;
+    }
+
+    protected static FileSystem loadJar(EditorFrame parent, Window window, File file, DefaultListModel<BasicSortInfo> sortsListModel, JList<BasicSortInfo> sortsList) {
+        FileSystem jarFs;
         try {
             jarFs = FileSystems.newFileSystem(file.toPath(), (ClassLoader)null);
         } catch (IOException exc) {
-            showErrorMessage(exc, "Open JAR");
-            return;
+            parent.showErrorMessage(exc, "Open JAR");
+            return null;
         }
-        currentlyLoaded.setText(file.getName());
-        jarFile = file;
 
         List<BasicSortInfo> sorts = new ArrayList<>();
         Path sortsDir = jarFs.getPath("sorts");
@@ -250,12 +262,12 @@ public class EditorFrame extends JFrame {
                 sorts.add(sort);
             });
         } catch (IOException e) {
-            showErrorMessage(e, "Open JAR");
-            return;
+            parent.showErrorMessage(e, "Open JAR");
+            return null;
         }
 
         if (sorts.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(parent, "This JAR doesn't appear to have any sorts. Please verifiy that this is an ArrayV JAR.", "Open JAR", JOptionPane.WARNING_MESSAGE);
         }
 
         Collections.sort(sorts);
@@ -263,7 +275,8 @@ public class EditorFrame extends JFrame {
         sortsListModel.addAll(sorts);
 
         sortsList.setEnabled(true);
-        pack();
+        window.pack();
+        return jarFs;
     }
 
     protected BasicSortInfo[] getSortsFromIndices(int[] sortIndices) {
@@ -273,6 +286,13 @@ public class EditorFrame extends JFrame {
             sorts[i++] = sortsListModel.get(sortIndex);
         }
         return sorts;
+    }
+
+    protected void transferSorts(File jar) {
+        ImportFromDialog dialog = new ImportFromDialog(this, themeDetector);
+        dialog.jarFs = loadJar(this, dialog, jar, dialog.sortsListModel, dialog.sortsList);
+        dialog.currentlyLoaded.setText(jar.getName());
+        dialog.setVisible(true);
     }
 
     protected void importSorts(File[] files) {
@@ -303,36 +323,7 @@ public class EditorFrame extends JFrame {
                         showErrorMessage(e, "Import Sort");
                         return false;
                     }
-                    String packageName = classInfo.getPackageName();
-                    if (!packageName.startsWith("sorts.")) {
-                        int shouldImport = JOptionPane.showConfirmDialog(this,
-                            "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
-                            "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                        if (shouldImport != JOptionPane.YES_OPTION) {
-                            return false;
-                        }
-                    }
-                    String[] sortPath = classInfo.getClassName().split("\\.");
-                    sortPath[sortPath.length - 1] += ".class";
-                    Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
-                    if (Files.exists(destination)) {
-                        int shouldImport = JOptionPane.showConfirmDialog(this,
-                            "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
-                            "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                        if (shouldImport != JOptionPane.YES_OPTION) {
-                            return false;
-                        }
-                    }
-                    try {
-                        Files.copy(file.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        showErrorMessage(e, "Import Sort");
-                        return false;
-                    }
-                    String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
-                    name = name.substring(0, name.length() - ".class".length());
-                    BasicSortInfo info = new BasicSortInfo(name, name);
-                    sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
+                    if (!importFromClassFile(classInfo, file.toPath())) return false;
                     break;
 
                 default:
@@ -342,6 +333,40 @@ public class EditorFrame extends JFrame {
                     return false;
             }
         }
+        return true;
+    }
+
+    protected boolean importFromClassFile(JavaClass classInfo, Path fromPath) {
+        String packageName = classInfo.getPackageName();
+        if (!packageName.startsWith("sorts.")) {
+            int shouldImport = JOptionPane.showConfirmDialog(this,
+                "The sort \"" + classInfo.getClassName() + "\" doesn't appear to be a sort. Would you like to import it anyway?",
+                "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (shouldImport != JOptionPane.YES_OPTION) {
+                return false;
+            }
+        }
+        String[] sortPath = classInfo.getClassName().split("\\.");
+        sortPath[sortPath.length - 1] += ".class";
+        Path destination = jarFs.getPath(sortPath[0], Arrays.copyOfRange(sortPath, 1, sortPath.length));
+        if (Files.exists(destination)) {
+            int shouldImport = JOptionPane.showConfirmDialog(this,
+                "The sort \"" + classInfo.getClassName() + "\" seems to already be in the JAR. Would you like to import it anyway?",
+                "Import Sort", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (shouldImport != JOptionPane.YES_OPTION) {
+                return false;
+            }
+        }
+        try {
+            Files.copy(fromPath, destination, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            showErrorMessage(e, "Import Sort");
+            return false;
+        }
+        String name = Arrays.stream(Arrays.copyOfRange(sortPath, 1, sortPath.length)).collect(Collectors.joining("/"));
+        name = name.substring(0, name.length() - ".class".length());
+        BasicSortInfo info = new BasicSortInfo(name, name);
+        sortsListModel.insertElementAt(info, Math.abs(ListModelUtils.binarySearch(sortsListModel, info)) - 1);
         return true;
     }
 
@@ -382,7 +407,6 @@ public class EditorFrame extends JFrame {
                     Files.copy(sibling, dest, StandardCopyOption.REPLACE_EXISTING);
                     resultFiles.add(dest.toFile());
                 }
-                matcher.matches(path);
                 count++;
             }
         } catch (IOException e) {
@@ -438,6 +462,10 @@ public class EditorFrame extends JFrame {
     }
 
     public Iterable<Path> getSortPaths(BasicSortInfo[] sorts) {
-        return () -> Arrays.stream(sorts).map(sort -> jarFs.getPath("sorts", sort.id + ".class")).iterator();
+        return getSortPaths(jarFs, sorts);
+    }
+
+    public static Iterable<Path> getSortPaths(FileSystem fs, BasicSortInfo[] sorts) {
+        return () -> Arrays.stream(sorts).map(sort -> fs.getPath("sorts", sort.id + ".class")).iterator();
     }
 }
